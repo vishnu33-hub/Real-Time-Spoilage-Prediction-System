@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FruitGuard | Smart Spoilage Detection</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background: linear-gradient(rgba(255, 255, 255, 0.85), rgba(204, 125, 125, 0.85)),
+        url('images.jpg') no-repeat center center fixed;
+      background-size: cover;
+      height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 2rem;
+      position: relative;
+    }
+
+    .card {
+      background: white;
+      border-radius: 1.5rem;
+      padding: 2rem 2.5rem;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+      max-width: 650px;
+      width: 100%;
+      text-align: center;
+      animation: fadeIn 1.2s ease-in-out;
+    }
+
+    @keyframes fadeIn {
+      from {
+        opacity: 0;
+        transform: translateY(20px);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    h1 {
+      font-size: 2.2rem;
+      font-weight: 600;
+      margin-bottom: 0.5rem;
+      color: #2c3e50;
+    }
+
+    .emoji-heading {
+      font-size: 1.8rem;
+      margin-bottom: 1rem;
+    }
+
+    .sensor-group {
+      display: flex;
+      justify-content: space-between;
+      gap: 1rem;
+      margin-top: 1rem;
+    }
+
+    .sensor-box {
+      flex: 1;
+      background: #f1f1f1;
+      border-radius: 0.75rem;
+      padding: 1rem;
+      font-size: 1rem;
+      color: #34495e;
+      transition: transform 0.3s ease, box-shadow 0.3s ease;
+    }
+
+    .sensor-box:hover {
+      transform: scale(1.05);
+      box-shadow: 0 6px 18px rgba(0, 0, 0, 0.15);
+    }
+
+    .sensor-box span {
+      display: block;
+      margin-top: 0.5rem;
+      font-weight: bold;
+      font-size: 1.2rem;
+    }
+
+    .status {
+      margin-top: 1.5rem;
+      font-size: 1.5rem;
+      font-weight: bold;
+    }
+
+    .timestamp {
+      margin-top: 0.5rem;
+      font-size: 0.9rem;
+      color: #888;
+    }
+
+    footer {
+      margin-top: 2rem;
+      font-size: 0.8rem;
+      color: #aaa;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="card">
+    <h1>Real-Time Spoilage Prediction System</h1>
+    <div class="emoji-heading">🍎🍌🍇</div>
+
+    <div class="sensor-group">
+      <div class="sensor-box">🌡️ Temperature<span id="temp">--</span>°C</div>
+      <div class="sensor-box">💧 Humidity<span id="hum">--</span>%</div>
+      <div class="sensor-box">🏭 CO₂ Level<span id="gas">--</span>ppm</div>
+    </div>
+
+    <div class="status" id="result">Prediction: --</div>
+    <div class="timestamp">⏰ Last updated: <span id="updated-time">--</span></div>
+    <footer>Built with ❤️ by Team Fresh Picks!!! | Hackathon 2025</footer>
+  </div>
+
+  <script>
+    function getCookie(name) {
+      let cookieValue = null;
+      if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+          const cookie = cookies[i].trim();
+          if (cookie.substring(0, name.length + 1) === (name + '=')) {
+            cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+            break;
+          }
+        }
+      }
+      return cookieValue;
+    }
+
+    const csrftoken = getCookie('csrftoken');
+
+    async function getPrediction() {
+      try {
+        // Fetch the latest sensor data
+        const sensorRes = await fetch("/latest/");
+        const sensorData = await sensorRes.json();
+
+        console.log(sensorData); // Log the received data to inspect it
+
+        if (sensorData.error) throw new Error(sensorData.error);
+
+        // Update the UI with the received sensor data
+        document.getElementById("temp").textContent = sensorData.temperature;
+        document.getElementById("hum").textContent = sensorData.humidity;
+        document.getElementById("gas").textContent = sensorData.gas;
+        document.getElementById("updated-time").textContent = new Date().toLocaleTimeString();
+
+        // Prepare the data to be sent for prediction
+        const payload = {
+          temp: parseFloat(sensorData.temperature),
+          hum: parseFloat(sensorData.humidity),
+          co2: parseFloat(sensorData.gas)
+        };
+
+        // Send the data to the backend for prediction
+        const response = await fetch("/predict/", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-CSRFToken": csrftoken
+          },
+          body: JSON.stringify(payload)
+        });
+
+        const data = await response.json();
+        if (data.error) throw new Error(data.error);
+
+        // Update the prediction result
+        const result = data.output === "Spoiled" ? "⚠️ Spoiled 🍌" : "✅ Fresh 🍎";
+        document.getElementById("result").textContent = "Prediction: " + result;
+        document.getElementById("result").style.color = (data.output === "Spoiled") ? '#e74c3c' : '#27ae60';
+
+      } catch (err) {
+        // Handle any errors during the process
+        document.getElementById("result").textContent = "Error: " + err.message;
+        document.getElementById("result").style.color = '#e67e22';
+        console.error('Error occurred:', err); // Log the error in the console
+      }
+    }
+
+    setInterval(getPrediction, 10000);
+    getPrediction();
+  </script>
+</body>
+
+</html>
